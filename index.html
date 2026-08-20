@@ -1,11 +1,8 @@
-<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>敦賀木崎店 休み希望アプリ</title>
-<meta name="description" content="敦賀木崎店 スタッフ用 休み希望申請アプリ">
-<meta property="og:description" content="敦賀木崎店 スタッフ用 休み希望申請アプリ">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#222;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
@@ -46,7 +43,6 @@ button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 14p
     <h2>📅 敦賀木崎店 休み希望アプリ</h2>
 
     <div id="firstSetup">
-      <h3>スマホでシフト希望を提出</h3> 
       <h3>管理者 初期設定</h3>
       <p class="notice">この画面は最初の1回だけ表示されます。管理者がスタッフ名と各スタッフのログインパスワードを登録します。</p>
       <label>スタッフ名（1行に1人）</label>
@@ -178,6 +174,13 @@ async function apiGet(key){
   if(j.error)throw new Error(j.error);
   return j.value; // 文字列 or null
 }
+async function apiGetMany(keys){
+  const res=await fetch(API_URL+'?action=getMany&keys='+encodeURIComponent(keys.join(',')));
+  if(!res.ok)throw new Error('取得に失敗しました: '+res.status);
+  const j=await res.json();
+  if(j.error)throw new Error(j.error);
+  return j.values; // {key: value, ...} の形
+}
 async function apiSet(key,value){
   const res=await fetch(API_URL,{
     method:'POST',
@@ -202,9 +205,14 @@ function ensure(d,n){d[n]??={status:{},time:{},note:''};d[n].note??='';return d[
 let cachedNames=[],cachedAccounts={},cachedAdminPassword=null,periodDataCache={};
 
 async function loadConfig(){
-  try{const v=await apiGet('config:names');cachedNames=v?JSON.parse(v):[];}catch(e){console.error(e);cachedNames=[];}
-  try{const v=await apiGet('config:accounts');cachedAccounts=v?JSON.parse(v):{};}catch(e){console.error(e);cachedAccounts={};}
-  try{const v=await apiGet('config:adminPassword');cachedAdminPassword=v||null;}catch(e){console.error(e);cachedAdminPassword=null;}
+  try{
+    const v=await apiGetMany(['config:names','config:accounts','config:adminPassword']);
+    cachedNames=v['config:names']?JSON.parse(v['config:names']):[];
+    cachedAccounts=v['config:accounts']?JSON.parse(v['config:accounts']):{};
+    cachedAdminPassword=v['config:adminPassword']||null;
+  }catch(e){
+    console.error(e);cachedNames=[];cachedAccounts={};cachedAdminPassword=null;
+  }
 }
 async function saveConfig(ns,acc,ap){
   cachedNames=ns;cachedAccounts=acc;
@@ -222,7 +230,16 @@ async function loadPeriodData(key){
 }
 async function preloadPeriods(){
   const opts=[...period.options].map(o=>o.value);
-  await Promise.all(opts.map(loadPeriodData));
+  try{
+    const v=await apiGetMany(opts.map(k=>'period:'+k));
+    opts.forEach(k=>{
+      const raw=v['period:'+k];
+      periodDataCache[k]=raw?JSON.parse(raw):{};
+    });
+  }catch(e){
+    console.error(e);
+    opts.forEach(k=>{ if(!periodDataCache[k]) periodDataCache[k]={}; });
+  }
 }
 
 
@@ -483,4 +500,3 @@ boot();
 </script>
 </body>
 </html>
-
