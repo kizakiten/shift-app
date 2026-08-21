@@ -358,24 +358,36 @@ function renderAdmin(){
 function toggleStaff(id){const e=$(id);e.style.display=e.style.display==='none'?'block':'none'}
 
 function exportExcel(){
-  const d=data(),ds=dates(),aoa=[];
+  const d=data(),ds=dates(),aoa=[],timeCells=[]; // timeCells: [row, col] 数値として書式設定する対象
+  let row=0;
   names().forEach(n=>{
     const p=ensure(d,n);
-    aoa.push([n,...ds.map(x=>fmt(x))]);
-    aoa.push([n,...ds.map(x=>DOW[x.getDay()])]);
-    aoa.push([n,...ds.map(x=>{
+    aoa.push([n,...ds.map(x=>fmt(x))]); row++;
+    aoa.push([n,...ds.map(x=>DOW[x.getDay()])]); row++;
+    aoa.push([n,...ds.map((x,i)=>{
       const k=iso(x),s=p.status[k]||'none',t=p.time[k]||{};
-      return s==='abs'?'定':s==='pref'?'休':s==='off'?'有':(t.from?t.from.replace(':',''):'');
-    })]);
-    aoa.push([n,...ds.map(x=>{
+      if(s==='abs')return '定';
+      if(s==='pref')return '休';
+      if(s==='off')return '有';
+      if(t.from){timeCells.push([row,i+1]);return Number(t.from.replace(':',''));}
+      return '';
+    })]); row++;
+    aoa.push([n,...ds.map((x,i)=>{
       const k=iso(x),s=p.status[k]||'none',t=p.time[k]||{};
-      return s==='abs'?'':s==='pref'?'':s==='off'?'':(t.to?t.to.replace(':',''):'');
-    })]);
-    if(p.note)aoa.push([n+'（備考）',p.note]);
-    aoa.push([]);
+      if(s==='abs'||s==='pref'||s==='off')return '';
+      if(t.to){timeCells.push([row,i+1]);return Number(t.to.replace(':',''));}
+      return '';
+    })]); row++;
+    if(p.note){aoa.push([n+'（備考）',p.note]); row++;}
+    aoa.push([]); row++;
   });
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols']=[{wch:14},...ds.map(()=>({wch:8}))];
+  // 出退勤の時刻セルは数値として保存しつつ、0900のような4桁ゼロ埋め表示にする
+  timeCells.forEach(([r,c])=>{
+    const addr=XLSX.utils.encode_cell({r,c});
+    if(ws[addr])ws[addr].z='0000';
+  });
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'シフト希望');
   XLSX.writeFile(wb,`シフト希望_${periodKey}.xlsx`);
