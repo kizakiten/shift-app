@@ -272,7 +272,7 @@ function dates(){
 }
 function makePeriods(){
   const now=new Date(),base=now.getDate()>=16?new Date(now.getFullYear(),now.getMonth(),16):new Date(now.getFullYear(),now.getMonth()-1,16);
-  const arr=[-1,0,1].map(i=>new Date(base.getFullYear(),base.getMonth()+i,16));
+  const arr=[0,1,2].map(i=>new Date(base.getFullYear(),base.getMonth()+i,16));
   period.innerHTML=arr.map(s=>{
     const e=new Date(s.getFullYear(),s.getMonth()+1,15);
     return `<option value="${iso(s)}">${s.getFullYear()}/${s.getMonth()+1}/16 ～ ${e.getFullYear()}/${e.getMonth()+1}/15</option>`;
