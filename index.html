@@ -181,14 +181,6 @@ button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 14p
 const DOW=['日','月','火','水','木','金','土'];
 let periodKey='',currentDate='',loggedUser='',isAdmin=false;
 const $=id=>document.getElementById(id);
-// スマホでパスワード欄などにキーボードが出ている状態だと、ボタンの1回目のタップが
-// 「キーボードを閉じるだけ」で終わってしまい、クリックが発生しないことがある。
-// touchendでも同じ処理を確実に実行することで、1回のタップで反応するようにする。
-function bindTap(el,handler){
-  let touched=false;
-  el.addEventListener('touchend',e=>{touched=true;e.preventDefault();handler();});
-  el.addEventListener('click',()=>{if(touched){touched=false;return}handler();});
-}
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'),fmt=d=>d.getMonth()+1+'/'+d.getDate();
 
 /* ▼▼▼ ここを、あなたが公開したGoogle Apps ScriptウェブアプリのURLに書き換えてください ▼▼▼ */
@@ -366,36 +358,24 @@ function renderAdmin(){
 function toggleStaff(id){const e=$(id);e.style.display=e.style.display==='none'?'block':'none'}
 
 function exportExcel(){
-  const d=data(),ds=dates(),aoa=[],timeCells=[]; // timeCells: [row, col] 数値として書式設定する対象
-  let row=0;
+  const d=data(),ds=dates(),aoa=[];
   names().forEach(n=>{
     const p=ensure(d,n);
-    aoa.push([n,...ds.map(x=>fmt(x))]); row++;
-    aoa.push([n,...ds.map(x=>DOW[x.getDay()])]); row++;
-    aoa.push([n,...ds.map((x,i)=>{
+    aoa.push([n,...ds.map(x=>fmt(x))]);
+    aoa.push([n,...ds.map(x=>DOW[x.getDay()])]);
+    aoa.push([n,...ds.map(x=>{
       const k=iso(x),s=p.status[k]||'none',t=p.time[k]||{};
-      if(s==='abs')return '定';
-      if(s==='pref')return '休';
-      if(s==='off')return '有';
-      if(t.from){timeCells.push([row,i+1]);return Number(t.from.replace(':',''));}
-      return '';
-    })]); row++;
-    aoa.push([n,...ds.map((x,i)=>{
+      return s==='abs'?'定':s==='pref'?'休':s==='off'?'有':(t.from?t.from.replace(':',''):'');
+    })]);
+    aoa.push([n,...ds.map(x=>{
       const k=iso(x),s=p.status[k]||'none',t=p.time[k]||{};
-      if(s==='abs'||s==='pref'||s==='off')return '';
-      if(t.to){timeCells.push([row,i+1]);return Number(t.to.replace(':',''));}
-      return '';
-    })]); row++;
-    if(p.note){aoa.push([n+'（備考）',p.note]); row++;}
-    aoa.push([]); row++;
+      return s==='abs'?'':s==='pref'?'':s==='off'?'':(t.to?t.to.replace(':',''):'');
+    })]);
+    if(p.note)aoa.push([n+'（備考）',p.note]);
+    aoa.push([]);
   });
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols']=[{wch:14},...ds.map(()=>({wch:8}))];
-  // 出退勤の時刻セルは数値として保存しつつ、0900のような4桁ゼロ埋め表示にする
-  timeCells.forEach(([r,c])=>{
-    const addr=XLSX.utils.encode_cell({r,c});
-    if(ws[addr])ws[addr].z='0000';
-  });
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'シフト希望');
   XLSX.writeFile(wb,`シフト希望_${periodKey}.xlsx`);
@@ -451,7 +431,7 @@ function initialSetup(){
   setupPasswordArea.dataset.names=JSON.stringify(ns);
   setupNext.style.display='none';
   const btn=document.createElement('button');btn.className='primary';btn.textContent='初期設定を完了する';btn.id='setupFinish';setupPasswordArea.appendChild(btn);
-  bindTap(btn,async()=>{
+  btn.onclick=async()=>{
     const acc={};let ok=true;
     document.querySelectorAll('.setupStaffPw').forEach(e=>{if(!e.value)ok=false;acc[decodeURIComponent(e.dataset.name)]=e.value});
     if(!ok){setupError.textContent='全スタッフのパスワードを入力してください。';return}
@@ -465,15 +445,15 @@ function initialSetup(){
       setupError.textContent='保存に失敗しました。通信環境を確認してもう一度お試しください。';
       btn.disabled=false;btn.textContent='初期設定を完了する';
     }
-  });
+  };
 }
-bindTap(setupNext,initialSetup);
+setupNext.onclick=initialSetup;
 
 staffLoginChoice.onclick=showStaffLogin;
 adminLoginChoice.onclick=showAdminLogin;
 backChoice1.onclick=openChoice;backChoice2.onclick=openChoice;
 
-bindTap(staffLoginBtn,async()=>{
+staffLoginBtn.onclick=async()=>{
   const n=staffNameLogin.value,p=staffPwLogin.value,acc=staffAccounts();
   if(acc[n]!==p){staffLoginError.textContent='名前またはパスワードが違います。';return}
   loggedUser=n;isAdmin=false;
@@ -485,8 +465,8 @@ bindTap(staffLoginBtn,async()=>{
   }catch(e){
     console.error('データの読み込みに失敗しました',e);staffLoginError.textContent='データの読み込みに失敗しました。もう一度お試しください。';
   }finally{staffLoginBtn.disabled=false;}
-});
-bindTap(adminLoginBtn,async()=>{
+};
+adminLoginBtn.onclick=async()=>{
   if(adminPwLogin.value!==cachedAdminPassword){adminLoginError.textContent='パスワードが違います。';return}
   isAdmin=true;loggedUser='管理者';
   adminLoginBtn.disabled=true;
@@ -497,7 +477,7 @@ bindTap(adminLoginBtn,async()=>{
   }catch(e){
     console.error('データの読み込みに失敗しました',e);adminLoginError.textContent='データの読み込みに失敗しました。もう一度お試しください。';
   }finally{adminLoginBtn.disabled=false;}
-});
+};
 logoutBtn.onclick=()=>location.reload();
 
 staffManageBtn.onclick=()=>{
