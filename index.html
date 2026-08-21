@@ -1,4 +1,3 @@
-
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -286,9 +285,8 @@ function timeSel(k,type,v){
   ['00','15','30','45'].forEach(x=>m+=`<option ${vm===x?'selected':''} value="${x}">${x}</option>`);
   return `<div class="time-selects"><select data-k="${k}" data-t="${type}" data-p="h">${h}</select><select data-k="${k}" data-t="${type}" data-p="m">${m}</select></div>`;
 }
-function renderInput(){
+function renderInputCalendar(){
   const d=data(),p=ensure(d,loggedUser);
-  loggedStaffName.textContent=loggedUser;
   inputCalendar.innerHTML=dates().map(x=>{
     const k=iso(x),s=p.status[k]||'none',l={none:'未設定',abs:'絶対休み',pref:'できれば休み',off:'有給休暇'}[s];
     return `<div class="day ${x.getDay()==0?'sun':''} ${x.getDay()==6?'sat':''}">
@@ -296,6 +294,11 @@ function renderInput(){
       <span class="badge ${s}">${l}</span><button onclick="openModal('${k}')"></button>
     </div>`;
   }).join('');
+}
+function renderInput(){
+  const d=data(),p=ensure(d,loggedUser);
+  loggedStaffName.textContent=loggedUser;
+  renderInputCalendar();
   timeList.innerHTML=dates().map(x=>{
     const k=iso(x),t=p.time[k]||{};
     return `<div class="time-row"><span>${fmt(x)}(${DOW[x.getDay()]})</span>${timeSel(k,'from',t.from)}${timeSel(k,'to',t.to)}</div>`;
@@ -311,7 +314,7 @@ function openModal(k){
 }
 document.querySelectorAll('.opt').forEach(b=>b.onclick=async()=>{
   const d=data(),p=ensure(d,loggedUser);p.status[currentDate]=b.dataset.status;
-  modal.classList.remove('open');renderAll();
+  modal.classList.remove('open');renderInputCalendar();
   try{await save(d);}catch(e){console.error('保存に失敗しました',e);alert('保存に失敗しました。通信環境を確認してもう一度お試しください。');}
 });
 closeModal.onclick=()=>modal.classList.remove('open');
