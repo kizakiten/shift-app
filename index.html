@@ -453,7 +453,7 @@ function initialSetup(){
   const btn=document.createElement('button');btn.className='primary';btn.textContent='初期設定を完了する';btn.id='setupFinish';setupPasswordArea.appendChild(btn);
   bindTap(btn,async()=>{
     const acc={};let ok=true;
-    document.querySelectorAll('.setupStaffPw').forEach(e=>{if(!e.value)ok=false;acc[decodeURIComponent(e.dataset.name)]=e.value});
+    document.querySelectorAll('.setupStaffPw').forEach(e=>{e.blur();if(!e.value)ok=false;acc[decodeURIComponent(e.dataset.name)]=e.value});
     if(!ok){setupError.textContent='全スタッフのパスワードを入力してください。';return}
     btn.disabled=true;btn.textContent='保存中…';
     try{
@@ -475,28 +475,30 @@ backChoice1.onclick=openChoice;backChoice2.onclick=openChoice;
 
 bindTap(staffLoginBtn,async()=>{
   const n=staffNameLogin.value,p=staffPwLogin.value,acc=staffAccounts();
+  staffPwLogin.blur(); // タップ直後にキーボードを閉じる
   if(acc[n]!==p){staffLoginError.textContent='名前またはパスワードが違います。';return}
   loggedUser=n;isAdmin=false;
-  staffLoginBtn.disabled=true;
+  staffLoginBtn.disabled=true;staffLoginBtn.textContent='読み込み中…';staffLoginError.textContent='';
   try{
     makePeriods();await preloadPeriods();
     loginOverlay.style.display='none';staffArea.style.display='block';adminView.style.display='none';
     currentUser.textContent='ログイン中：'+n;renderAll();
   }catch(e){
     console.error('データの読み込みに失敗しました',e);staffLoginError.textContent='データの読み込みに失敗しました。もう一度お試しください。';
-  }finally{staffLoginBtn.disabled=false;}
+  }finally{staffLoginBtn.disabled=false;staffLoginBtn.textContent='ログイン';}
 });
 bindTap(adminLoginBtn,async()=>{
+  adminPwLogin.blur(); // タップ直後にキーボードを閉じる
   if(adminPwLogin.value!==cachedAdminPassword){adminLoginError.textContent='パスワードが違います。';return}
   isAdmin=true;loggedUser='管理者';
-  adminLoginBtn.disabled=true;
+  adminLoginBtn.disabled=true;adminLoginBtn.textContent='読み込み中…';adminLoginError.textContent='';
   try{
     makePeriods();await preloadPeriods();
     loginOverlay.style.display='none';staffArea.style.display='none';adminView.style.display='block';
     currentUser.textContent='管理者';renderAll();
   }catch(e){
     console.error('データの読み込みに失敗しました',e);adminLoginError.textContent='データの読み込みに失敗しました。もう一度お試しください。';
-  }finally{adminLoginBtn.disabled=false;}
+  }finally{adminLoginBtn.disabled=false;adminLoginBtn.textContent='管理者としてログイン';}
 });
 logoutBtn.onclick=()=>location.reload();
 
