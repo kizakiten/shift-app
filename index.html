@@ -355,7 +355,7 @@ function renderAdmin(){
     const rows=dates().map(x=>{
       const k=iso(x),s=p.status[k]||'none';
       const sl={none:'―',abs:'🔴 絶対休み',pref:'🟡 できれば休み',off:'🔵 有給休暇'}[s];
-      const t=p.time[k]||{},tm=t.from&&t.to?t.from+'～'+t.to:'―';
+      const t=p.time[k]||{},tm=(t.from||t.to)?(t.from||'指定なし')+'～'+(t.to||'指定なし'):'―';
       return `<div class="admin-row"><span>${fmt(x)}(${DOW[x.getDay()]})</span><span>${sl}</span><span>${tm}</span></div>`;
     }).join('');
     const noteHtml=p.note?`<p class="small"><b>備考：</b>${p.note.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</p>`:'';
