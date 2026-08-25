@@ -365,14 +365,24 @@ function renderAdmin(){
 }
 function toggleStaff(id){const e=$(id);e.style.display=e.style.display==='none'?'block':'none'}
 
+function exportColumns(){
+  // 前半（16日～月末）は常に16列分（16～31日）確保し、実際の月末が31日未満の場合は
+  // 空白列（null）で埋めて後半（1日～15日）の位置を貼り付け先シートと揃える。
+  const ds=dates(),startMonth=ds[0].getMonth();
+  const firstSeg=ds.filter(x=>x.getMonth()===startMonth);
+  const secondSeg=ds.filter(x=>x.getMonth()!==startMonth);
+  while(firstSeg.length<16)firstSeg.push(null);
+  return [...firstSeg,...secondSeg];
+}
 function exportExcel(){
-  const d=data(),ds=dates(),aoa=[],timeCells=[]; // timeCells: [row, col] 数値として書式設定する対象
+  const d=data(),cols=exportColumns(),aoa=[],timeCells=[]; // timeCells: [row, col] 数値として書式設定する対象
   let row=0;
   names().forEach(n=>{
     const p=ensure(d,n);
-    aoa.push([n,...ds.map(x=>fmt(x))]); row++;
-    aoa.push([n,...ds.map(x=>DOW[x.getDay()])]); row++;
-    aoa.push([n,...ds.map((x,i)=>{
+    aoa.push([n,...cols.map(x=>x?fmt(x):'')]); row++;
+    aoa.push([n,...cols.map(x=>x?DOW[x.getDay()]:'')]); row++;
+    aoa.push([n,...cols.map((x,i)=>{
+      if(!x)return '';
       const k=iso(x),s=p.status[k]||'none',t=p.time[k]||{};
       if(s==='abs')return '定';
       if(s==='pref')return '休';
@@ -380,7 +390,8 @@ function exportExcel(){
       if(t.from){timeCells.push([row,i+1]);return Number(t.from.replace(':',''));}
       return '';
     })]); row++;
-    aoa.push([n,...ds.map((x,i)=>{
+    aoa.push([n,...cols.map((x,i)=>{
+      if(!x)return '';
       const k=iso(x),s=p.status[k]||'none',t=p.time[k]||{};
       if(s==='abs'||s==='pref'||s==='off')return '';
       if(t.to){timeCells.push([row,i+1]);return Number(t.to.replace(':',''));}
@@ -390,7 +401,7 @@ function exportExcel(){
     aoa.push([]); row++;
   });
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:14},...ds.map(()=>({wch:8}))];
+  ws['!cols']=[{wch:14},...cols.map(()=>({wch:8}))];
   // 出退勤の時刻セルは数値として保存しつつ、0900のような4桁ゼロ埋め表示にする
   timeCells.forEach(([r,c])=>{
     const addr=XLSX.utils.encode_cell({r,c});
