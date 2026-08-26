@@ -116,22 +116,29 @@ button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 14p
     </div>
 
     <section id="inputView">
-      <div class="card">
-        <div class="row"><b id="loggedStaffName"></b></div>
-        <p class="notice">休み希望の日はすべて記入してください。それ以外の日は出勤可能と判断します。一番下の「保存」を忘れず押してください。 ※入力・修正は毎月1日までにお願いします</p>
-        <div class="legend">🔴 絶対休み　 🟡 できれば休み　 🔵 有給休暇</div>
+      <div class="card" id="deadlineNotice" style="display:none">
+        <h2>⛔ 入力を締め切りました</h2>
+        <p class="notice">この期間の休み希望・勤務可能時間の入力は締め切られました。変更が必要な場合は管理者にご連絡ください。</p>
       </div>
-      <div class="card"><div class="days" id="inputCalendar"></div></div>
-      <div class="card">
-        <h2>勤務可能時間</h2>
-        <p class="notice">希望勤務時間を記入してください。記入がない場合は契約時の勤務時間を優先します</p>
-        <p class="notice">←出勤時間　退勤時間→</p>
-        <div id="timeList"></div>
-        <h2>備考</h2>
-        <p class="notice">自由に書き込んでください（例：月〇〇時間以内など）。</p>
-        <textarea id="noteInput" rows="4" style="width:100%" placeholder="自由に希望・事情などを記入してください"></textarea>
-        <button class="primary" id="saveBtn">保存する</button>
-        <span id="saveMsg" class="small"></span>
+      <div id="inputFields">
+        <div class="card">
+          <div class="row"><b id="loggedStaffName"></b></div>
+          <p class="notice">休み希望の日はすべて記入してください。それ以外の日は出勤可能と判断します。一番下の「保存」を忘れず押してください。 ※入力・修正は毎月1日までにお願いします</p>
+          <p class="notice" id="deadlineInfo"></p>
+          <div class="legend">🔴 絶対休み　 🟡 できれば休み　 🔵 有給休暇</div>
+        </div>
+        <div class="card"><div class="days" id="inputCalendar"></div></div>
+        <div class="card">
+          <h2>勤務可能時間</h2>
+          <p class="notice">希望勤務時間を記入してください。記入がない場合は契約時の勤務時間を優先します</p>
+          <p class="notice">←出勤時間　退勤時間→</p>
+          <div id="timeList"></div>
+          <h2>備考</h2>
+          <p class="notice">自由に書き込んでください（例：月〇〇時間以内など）。</p>
+          <textarea id="noteInput" rows="4" style="width:100%" placeholder="自由に希望・事情などを記入してください"></textarea>
+          <button class="primary" id="saveBtn">保存する</button>
+          <span id="saveMsg" class="small"></span>
+        </div>
       </div>
     </section>
 
@@ -148,6 +155,7 @@ button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 14p
   <section id="adminView" style="display:none">
     <div class="adminBar">
       <button class="secondary" id="exportBtn">📊 Excel出力</button>
+      <button class="secondary" id="deadlineBtn">締切設定</button>
       <button class="secondary" id="staffManageBtn">スタッフ設定</button>
       <button class="secondary" id="logoutBtn">ログアウト</button>
     </div>
@@ -155,6 +163,13 @@ button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 14p
       <h2>管理者：スタッフごとの希望</h2>
       <p class="notice">スタッフ1人ごとに1か月分の「休み希望」と「勤務可能時間」を確認できます。</p>
       <div id="adminStaff"></div>
+    </div>
+    <div class="card" id="deadlinePanel" style="display:none">
+      <h2>締切設定</h2>
+      <p class="notice">対象期間ごとに入力締切日を設定できます。締切日の23:59を過ぎると、スタッフ側の入力画面に「入力を締め切りました」と表示され、入力・保存ができなくなります。空欄のままにすると締切なしです。</p>
+      <div id="deadlineList"></div>
+      <button class="primary" id="deadlineSave">保存</button>
+      <span id="deadlineMsg" class="small"></span>
     </div>
     <div class="card" id="staffManage" style="display:none">
       <h2>スタッフ設定</h2>
@@ -230,16 +245,17 @@ function save(d){
 }
 function ensure(d,n){d[n]??={status:{},time:{},note:''};d[n].note??='';return d[n]}
 
-let cachedNames=[],cachedAccounts={},cachedAdminPassword=null,periodDataCache={};
+let cachedNames=[],cachedAccounts={},cachedAdminPassword=null,cachedDeadlines={},periodDataCache={};
 
 async function loadConfig(){
   try{
-    const v=await apiGetMany(['config:names','config:accounts','config:adminPassword']);
+    const v=await apiGetMany(['config:names','config:accounts','config:adminPassword','config:deadlines']);
     cachedNames=v['config:names']?JSON.parse(v['config:names']):[];
     cachedAccounts=v['config:accounts']?JSON.parse(v['config:accounts']):{};
     cachedAdminPassword=v['config:adminPassword']||null;
+    cachedDeadlines=v['config:deadlines']?JSON.parse(v['config:deadlines']):{};
   }catch(e){
-    console.error(e);cachedNames=[];cachedAccounts={};cachedAdminPassword=null;
+    console.error(e);cachedNames=[];cachedAccounts={};cachedAdminPassword=null;cachedDeadlines={};
   }
 }
 async function saveConfig(ns,acc,ap){
@@ -247,6 +263,16 @@ async function saveConfig(ns,acc,ap){
   const tasks=[apiSet('config:names',JSON.stringify(ns)),apiSet('config:accounts',JSON.stringify(acc))];
   if(ap!==undefined){cachedAdminPassword=ap;tasks.push(apiSet('config:adminPassword',ap));}
   await Promise.all(tasks);
+}
+function saveDeadlines(dl){
+  cachedDeadlines=dl;
+  return apiSet('config:deadlines',JSON.stringify(dl));
+}
+function deadlineFor(key){return cachedDeadlines[key]||'';}
+function isDeadlinePassed(key){
+  const dl=cachedDeadlines[key];
+  if(!dl)return false;
+  return new Date()>new Date(dl+'T23:59:59');
 }
 async function loadPeriodData(key){
   if(periodDataCache[key])return periodDataCache[key];
@@ -304,6 +330,11 @@ function renderInputCalendar(){
   }).join('');
 }
 function renderInput(){
+  const passed=isDeadlinePassed(periodKey),dl=deadlineFor(periodKey);
+  deadlineNotice.style.display=passed?'block':'none';
+  inputFields.style.display=passed?'none':'block';
+  deadlineInfo.textContent=(dl&&!passed)?('入力締切：'+dl.replace(/-/g,'/')+'（23:59まで）'):'';
+  if(passed)return;
   const d=data(),p=ensure(d,loggedUser);
   loggedStaffName.textContent=loggedUser;
   renderInputCalendar();
@@ -321,6 +352,7 @@ function openModal(k){
   modal.classList.add('open');
 }
 document.querySelectorAll('.opt').forEach(b=>b.onclick=async()=>{
+  if(!isAdmin&&isDeadlinePassed(periodKey)){modal.classList.remove('open');alert('入力締切を過ぎたため変更できません。');renderInput();return;}
   const d=data(),p=ensure(d,loggedUser);p.status[currentDate]=b.dataset.status;
   modal.classList.remove('open');renderInputCalendar();
   try{await save(d);}catch(e){console.error('保存に失敗しました',e);alert('保存に失敗しました。通信環境を確認してもう一度お試しください。');}
@@ -421,6 +453,7 @@ function renderAll(){
 period.onchange=async()=>{periodKey=period.value;await loadPeriodData(periodKey);renderAll()};
 
 saveBtn.onclick=async()=>{
+  if(isDeadlinePassed(periodKey)){alert('入力締切を過ぎたため保存できません。');renderInput();return;}
   const d=data(),p=ensure(d,loggedUser),tmp={};
   document.querySelectorAll('[data-k][data-t]').forEach(e=>{
     tmp[e.dataset.k]??={from:{},to:{}};
@@ -514,8 +547,36 @@ bindTap(adminLoginBtn,async()=>{
 logoutBtn.onclick=()=>location.reload();
 
 staffManageBtn.onclick=()=>{
+  deadlinePanel.style.display='none';
   staffManage.style.display=staffManage.style.display==='none'?'block':'none';
   manageStaff.value=names().map(n=>`${n}｜${staffAccounts()[n]||''}`).join('\n');
+};
+
+function renderDeadlineList(){
+  deadlineList.innerHTML=[...period.options].map(o=>{
+    const key=o.value,label=o.textContent,val=deadlineFor(key);
+    return `<div class="row" style="justify-content:space-between;margin:8px 0"><span class="small">${label}</span><input type="date" data-period="${key}" value="${val}"></div>`;
+  }).join('');
+}
+deadlineBtn.onclick=()=>{
+  staffManage.style.display='none';
+  const willShow=deadlinePanel.style.display==='none';
+  deadlinePanel.style.display=willShow?'block':'none';
+  if(willShow)renderDeadlineList();
+};
+deadlineSave.onclick=async()=>{
+  const dl={...cachedDeadlines};
+  deadlineList.querySelectorAll('input[data-period]').forEach(inp=>{
+    if(inp.value)dl[inp.dataset.period]=inp.value;else delete dl[inp.dataset.period];
+  });
+  deadlineMsg.textContent='保存中…';
+  try{
+    await saveDeadlines(dl);
+    deadlineMsg.textContent='保存しました';setTimeout(()=>deadlineMsg.textContent='',1500);
+  }catch(e){
+    console.error('締切設定の保存に失敗しました',e);
+    deadlineMsg.textContent='保存に失敗しました。もう一度お試しください。';
+  }
 };
 manageSave.onclick=async()=>{
   const lines=manageStaff.value.split('\n').map(x=>x.trim()).filter(Boolean),ns=[],acc={};
