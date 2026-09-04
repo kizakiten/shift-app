@@ -36,8 +36,6 @@ button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 14p
 .days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .day{position:relative;min-height:108px;background:#fff;border:1px solid #ddd;border-radius:9px;padding:6px}.date{font-weight:800;font-size:13px}.dow{font-size:11px;color:#666}
 .sun .date,.sun .dow{color:#d33}.sat .date,.sat .dow{color:#2670c9}
-.holiday{background:#fff8ef}.holiday .date,.holiday .dow{color:#e67e22}
-.holiday-name{display:block;font-size:9px;color:#e67e22;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
 .badge{display:block;border-radius:7px;padding:4px 2px;margin-top:5px;text-align:center;font-size:10px;font-weight:700}
 .none{background:#f0f0f0;color:#777}.abs{background:#ffe0e0;color:#b00000}.pref{background:#fff0bd;color:#765700}.off{background:#e4ebff;color:#284fa8}
 .day button{position:absolute;inset:0;background:transparent}
@@ -128,7 +126,7 @@ button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 14p
           <div class="row"><b id="loggedStaffName"></b></div>
           <p class="notice">休み希望の日はすべて記入してください。それ以外の日は出勤可能と判断します。一番下の「保存」を忘れず押してください。 ※入力・修正は毎月1日までにお願いします</p>
           <p class="notice" id="deadlineInfo"></p>
-          <div class="legend">🔴 絶対休み　 🟡 できれば休み　 🔵 有給休暇　 🟠 祝日</div>
+          <div class="legend">🔴 絶対休み　 🟡 できれば休み　 🔵 有給休暇</div>
         </div>
         <div class="card"><div class="days" id="inputCalendar"></div></div>
         <div class="card">
@@ -208,74 +206,6 @@ function bindTap(el,handler){
   el.addEventListener('click',()=>{if(touched){touched=false;return}handler();});
 }
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'),fmt=d=>d.getMonth()+1+'/'+d.getDate();
-
-/* ▼▼▼ 日本の祝日を自動計算する処理 ▼▼▼ */
-// 移動祝日（第n月曜）の日付を求める
-function nthWeekdayOfMonth(year,month,weekday,n){
-  let count=0;
-  for(let day=1;day<=31;day++){
-    const d=new Date(year,month-1,day);
-    if(d.getMonth()!==month-1)break;
-    if(d.getDay()===weekday){count++;if(count===n)return day;}
-  }
-  return null;
-}
-// 春分の日・秋分の日（1980～2099年で有効な近似式）
-function shunbunDay(year){return Math.floor(20.8431+0.242194*(year-1980)-Math.floor((year-1980)/4));}
-function shuubunDay(year){return Math.floor(23.2488+0.242194*(year-1980)-Math.floor((year-1980)/4));}
-function baseHolidaysOfYear(year){
-  const h={};
-  const add=(m,d,name)=>{if(d)h[`${year}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`]=name;};
-  add(1,1,'元日');
-  add(1,nthWeekdayOfMonth(year,1,1,2),'成人の日');
-  add(2,11,'建国記念の日');
-  add(2,23,'天皇誕生日');
-  add(3,shunbunDay(year),'春分の日');
-  add(4,29,'昭和の日');
-  add(5,3,'憲法記念日');
-  add(5,4,'みどりの日');
-  add(5,5,'こどもの日');
-  add(7,nthWeekdayOfMonth(year,7,1,3),'海の日');
-  add(8,11,'山の日');
-  add(9,nthWeekdayOfMonth(year,9,1,3),'敬老の日');
-  add(9,shuubunDay(year),'秋分の日');
-  add(10,nthWeekdayOfMonth(year,10,1,2),'スポーツの日');
-  add(11,3,'文化の日');
-  add(11,23,'勤労感謝の日');
-  return h;
-}
-// 振替休日・国民の休日も含めて祝日マップを作成
-function buildHolidayMap(startYear,endYear){
-  let h={};
-  for(let y=startYear;y<=endYear;y++)h={...h,...baseHolidaysOfYear(y)};
-  // 振替休日：祝日が日曜のとき、直後の「祝日でない日」を休日にする
-  let extra={};
-  Object.keys(h).sort().forEach(dstr=>{
-    const d=new Date(dstr+'T00:00:00');
-    if(d.getDay()===0){
-      let nd=new Date(d);
-      do{nd.setDate(nd.getDate()+1);}while(h[iso(nd)]||extra[iso(nd)]);
-      extra[iso(nd)]='振替休日';
-    }
-  });
-  h={...h,...extra};
-  // 国民の休日：祝日と祝日に挟まれた平日（日曜以外）を休日にする
-  const holidaySet=new Set(Object.keys(h));
-  let extra2={};
-  Object.keys(h).sort().forEach(dstr=>{
-    const d=new Date(dstr+'T00:00:00');
-    const between=new Date(d);between.setDate(between.getDate()+1);
-    const next=new Date(d);next.setDate(next.getDate()+2);
-    if(holidaySet.has(iso(next))&&!holidaySet.has(iso(between))&&between.getDay()!==0){
-      extra2[iso(between)]='国民の休日';
-    }
-  });
-  return {...h,...extra2};
-}
-// アプリで扱う期間（前後数か月）をカバーできるよう、前後の年も含めて計算しておく
-const HOLIDAY_MAP=buildHolidayMap(new Date().getFullYear()-1,new Date().getFullYear()+3);
-function holidayName(d){return HOLIDAY_MAP[iso(d)]||null;}
-/* ▲▲▲ 祝日計算ここまで ▲▲▲ */
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbwqIddV_EMgwY61AbG7X3jCFc7VOUUHRSt4rZKLUekfHYALONrVIc8ZqM3-VBkzhjCC/exec';
 
@@ -392,10 +322,8 @@ function renderInputCalendar(){
   const d=data(),p=ensure(d,loggedUser);
   inputCalendar.innerHTML=dates().map(x=>{
     const k=iso(x),s=p.status[k]||'none',l={none:'未設定',abs:'絶対休み',pref:'できれば休み',off:'有給休暇'}[s];
-    const hn=holidayName(x);
-    return `<div class="day ${x.getDay()==0?'sun':''} ${x.getDay()==6?'sat':''} ${hn?'holiday':''}">
+    return `<div class="day ${x.getDay()==0?'sun':''} ${x.getDay()==6?'sat':''}">
       <div class="date">${fmt(x)}</div><div class="dow">${DOW[x.getDay()]}</div>
-      ${hn?`<span class="holiday-name" title="${hn}">${hn}</span>`:''}
       <span class="badge ${s}">${l}</span><button onclick="openModal('${k}')"></button>
     </div>`;
   }).join('');
@@ -435,10 +363,8 @@ function renderShare(){
   shareCalendar.innerHTML=dates().map(x=>{
     const k=iso(x),a=[],p=[],o=[];
     Object.entries(d).forEach(([n,v])=>{if(v.status?.[k]=='abs')a.push(n);if(v.status?.[k]=='pref')p.push(n);if(v.status?.[k]=='off')o.push(n)});
-    const hn=holidayName(x);
-    return `<div class="day ${x.getDay()==0?'sun':''} ${x.getDay()==6?'sat':''} ${hn?'holiday':''}">
+    return `<div class="day ${x.getDay()==0?'sun':''} ${x.getDay()==6?'sat':''}">
       <div class="date">${fmt(x)}</div><div class="dow">${DOW[x.getDay()]}</div>
-      ${hn?`<span class="holiday-name" title="${hn}">${hn}</span>`:''}
       <span class="badge ${a.length?'abs':'none'}">${a.length?'🔴 '+a.length+'人':'－'}</span>
       <span class="badge ${p.length?'pref':'none'}">${p.length?'🟡 '+p.length+'人':'－'}</span>
       <span class="badge ${o.length?'off':'none'}">${o.length?'🔵 '+o.length+'人':'－'}</span>
