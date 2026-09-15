@@ -556,6 +556,8 @@ function openChoice(){
 function showStaffLogin(){
   loginChoice.style.display='none';staffLoginBox.style.display='block';adminLoginBox.style.display='none';
   staffNameLogin.innerHTML=names().map(n=>`<option>${n}</option>`).join('');
+  const lastName=localStorage.getItem('lastStaffName');
+  if(lastName&&names().includes(lastName))staffNameLogin.value=lastName;
 }
 function showAdminLogin(){loginChoice.style.display='none';staffLoginBox.style.display='none';adminLoginBox.style.display='block'}
 
@@ -594,6 +596,7 @@ bindTap(staffLoginBtn,async()=>{
   const n=staffNameLogin.value,p=staffPwLogin.value,acc=staffAccounts();
   staffPwLogin.blur(); // タップ直後にキーボードを閉じる
   if(acc[n]!==p){staffLoginError.textContent='名前またはパスワードが違います。';return}
+  localStorage.setItem('lastStaffName',n);
   loggedUser=n;isAdmin=false;
   staffLoginBtn.disabled=true;staffLoginBtn.textContent='読み込み中…';staffLoginError.textContent='';
   try{
